@@ -1,0 +1,6 @@
+/target/
+/.git/
+manifest.yaml
+devspace.yaml
+Dockerfile
+.devspace
