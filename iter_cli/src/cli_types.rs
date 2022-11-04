@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(
     author = "The Federation of Framework",
     version = "1.0.0",
@@ -16,25 +16,25 @@ pub struct IterCLI {
     pub command: Command,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum Command {
     /// setups secrets and kubls
-    Install {
-        /// the domain of the project
-        #[arg(short, long)]
-        domain: Option<String>,
-        /// github app secret
-        #[arg(short, long)]
-        github_secret: Option<String>,
-    },
+    Install(InstallCommand),
     /// deploys a project
     Deploy {
 
     },
+}
 
 
-
-
+#[derive(Parser, Debug, Clone)]
+pub struct InstallCommand { 
+    /// the domain of the project
+    #[arg(short, long)]
+    pub domain: Option<String>,
+    /// github app secret
+    #[arg(short, long)]
+    pub github_secret: Option<String>,
 }
 
 // iter setup {domain} {github secrets}
