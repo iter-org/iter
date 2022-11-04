@@ -62,8 +62,8 @@ fn request_missing_arg(prompt: &str) -> String {
         .unwrap();
 }
 
-#[test]
-fn test_cli() {
+#[tokio::test]
+async fn test_cli() {
     let args = vec![
         "iter".to_string(),
         "install".to_string(),
@@ -71,5 +71,12 @@ fn test_cli() {
         "domain".to_string(),
         "-g".to_string(),
         "github_secret".to_string()];
-    cli(args.into_iter());
+    cli(args.into_iter()).await;
+}
+#[tokio::test]
+async fn test_cli_without_args() {
+    let args = vec![
+        "iter".to_string(),
+        "install".to_string()];
+    cli(args.into_iter()).await;
 }
