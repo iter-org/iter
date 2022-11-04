@@ -14,17 +14,17 @@ use serde_json::json;
 mod cli_types;
 mod cli_kube;
 
-
-fn main() {
-    cli(std::env::args_os().into_iter().map(|x| x.to_string_lossy().into_owned()));
+#[tokio::main]
+async fn main() {
+    cli(std::env::args_os().into_iter().map(|x| x.to_string_lossy().into_owned())).await;
 }
 
-fn cli(args: impl Iterator<Item = String>) {
+async fn cli(args: impl Iterator<Item = String>) {
     let cli = cli_types::IterCLI::parse_from(args);
     match cli {
         cli_types::IterCLI { command } => {
             match command {
-                cli_types::Command::Install(install_cmd) => install_command(install_cmd),
+                cli_types::Command::Install(install_cmd) => install_command(install_cmd).await,
                 cli_types::Command::Deploy {  } => {
                     unimplemented!()
                 },
