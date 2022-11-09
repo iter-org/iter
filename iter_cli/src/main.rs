@@ -8,62 +8,57 @@
 
 
 use clap::Parser;
-use cli_kube::create_install_secrets;
-use dialoguer::{theme::ColorfulTheme, Input};
+
+use cli_kube::create_or_update_kube_secrets;
+use dialoguer::{theme::ColorfulTheme, Input, console::style};
 use serde_json::json;
 mod cli_types;
 mod cli_kube;
 
 #[tokio::main]
-async fn main() {
-    cli(std::env::args_os().into_iter().map(|x| x.to_string_lossy().into_owned())).await;
+async fn main() -> Result<(), anyhow::Error> { 
+    cli(std::env::args_os().into_iter().map(|x| x.to_string_lossy().into_owned())).await
 }
 
-async fn cli(args: impl Iterator<Item = String>) {
-    let cli = cli_types::IterCLI::parse_from(args);
-    match cli {
-        cli_types::IterCLI { command } => {
-            match command {
-                cli_types::Command::Install(install_cmd) => install_command(install_cmd).await,
-                cli_types::Command::Deploy {  } => {
-                    unimplemented!()
-                },
-            }
-        }
-    };
+async fn cli(args: impl Iterator<Item = String>) -> Result<(), anyhow::Error> {
+    match cli_types::IterCLI::parse_from(args).command {
+        cli_types::Command::Install(install_cmd) => install_command(install_cmd).await,
+        cli_types::Command::Deploy {  } => unimplemented!()
+    }
 }
 
-async fn install_command(cli_types::InstallCommand { domain, github_secret }: cli_types::InstallCommand) {
-    let domain = unwrap_or_prompt(domain, "Iter domain");
-    let github_secret = unwrap_or_prompt(github_secret, "Github App secret");
-    let json_secret = json!(
+async fn install_command(cli_types::InstallCommand { domain, github_secret }: cli_types::InstallCommand) -> Result<(), anyhow::Error> {
+    create_or_update_kube_secrets(json!(
         {
-            "domain": domain,
-            "github_secret": github_secret
+            "domain": unwrap_or_prompt(domain, "Iter domain")?,
+            "github_secret": unwrap_or_prompt(github_secret, "Github App secret")?
         }
-    );
-    let parsed_secret = create_install_secrets(json_secret, "iter-secrets", "iter").await;
+    ), "iter-secrets", "iter").await?;
 
-    // println!("domain: {}", domain);
-    // println!("github_secret: {}", github_secret);
+    println!("{} {}",
+        style("✔").green().bold(),
+        style("Iter Install Completed").blue().bold(),
+    );
+    
+    Ok(())
 }
 
-fn unwrap_or_prompt(arg: Option<String>, prompt: &str) -> String {
+fn unwrap_or_prompt(arg: Option<String>, prompt: &str) -> Result<String, anyhow::Error> {
     match arg {
-        Some(arg) => arg,
+        Some(arg) => Ok(arg),
         None => request_missing_arg(prompt),
     }
 }
 
-fn request_missing_arg(prompt: &str) -> String {
+fn request_missing_arg(prompt: &str) -> Result<String, anyhow::Error> {
     return Input::with_theme(&ColorfulTheme::default())
         .with_prompt(prompt)
         .interact()
-        .unwrap();
+        .map_err(|e| anyhow::anyhow!(e));
 }
 
 #[tokio::test]
-async fn test_cli() {
+async fn test_cli() -> Result<(), anyhow::Error> {
     let args = vec![
         "iter".to_string(),
         "install".to_string(),
@@ -71,12 +66,14 @@ async fn test_cli() {
         "domain".to_string(),
         "-g".to_string(),
         "github_secret".to_string()];
-    cli(args.into_iter()).await;
+
+    cli(args.into_iter()).await
 }
 #[tokio::test]
-async fn test_cli_without_args() {
+async fn test_cli_without_args() -> Result<(), anyhow::Error> {
     let args = vec![
         "iter".to_string(),
         "install".to_string()];
-    cli(args.into_iter()).await;
+        
+    cli(args.into_iter()).await
 }
