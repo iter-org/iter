@@ -6,5 +6,7 @@
 //! - [ ] iter setup - requires a valid kubeconfig (choose from a list of available kubeconfigs)
 
 fn main() {
+    println!("test 123");
     println!("Hello, world!");
+    println!("\x1b[0Acunt")
 }

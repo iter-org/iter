@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use letsencrypt::{error::LetsEncryptError, directory::Directory, account::ServesChallenge, challenge::Http01Challenge};
+use iter_letsencrypt::{error::LetsEncryptError, directory::Directory, account::ServesChallenge, challenge::Http01Challenge};
 use utils::test_server::with_directory_server;
 mod utils;
 

@@ -1,4 +1,4 @@
-use letsencrypt::{error::LetsEncryptError, account::Account, directory::{Directory, STAGING}};
+use iter_letsencrypt::{error::LetsEncryptError, account::Account, directory::{Directory, STAGING}};
 
 
 #[tokio::test]

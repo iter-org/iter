@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use congress::{Senator, Peer, RPCNetwork, RPC, MessageType, Message, Role};
+use iter_congress::{Senator, Peer, RPCNetwork, RPC, MessageType, Message, Role};
 use serde::{Deserialize, Serialize};
 use tokio::{io::{duplex, DuplexStream}, time::{timeout}, sync::{mpsc}};
 
@@ -55,13 +55,13 @@ async fn gets_role_updates(){
     let clone = tx.clone();
     a.on_role(move |role| {
         match role {
-            congress::Role::Leader => clone.send(()).unwrap(),
+            crate::Role::Leader => clone.send(()).unwrap(),
             _ => (),
         }
     }).await;
     b.on_role(move |role| {
         match role {
-            congress::Role::Leader => tx.send(()).unwrap(),
+            crate::Role::Leader => tx.send(()).unwrap(),
             _ => (),
         }
     }).await;

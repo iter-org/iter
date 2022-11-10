@@ -2,17 +2,19 @@
 FROM rust:bullseye as builder
 WORKDIR /app
 # RUN rustup toolchain install nightly-2022-03-22
-RUN rustup default nightly-2022-03-22
+RUN rustup default nightly
 
 # Install dependencies
 COPY Cargo.toml ./
-COPY letsencrypt ./letsencrypt
-COPY congress ./congress
-COPY tls_acceptor ./tls_acceptor
+COPY iter_letsencrypt ./iter_letsencrypt
+COPY iter_congress ./iter_congress
+COPY iter_tls_acceptor ./iter_tls_acceptor
+COPY iter_api_server ./iter_api_server
+COPY iter_cli ./iter_cli
 
-WORKDIR /app/drawbridge_ingress
+WORKDIR /app/iter_ingress
 
-COPY ./drawbridge_ingress/Cargo.toml ./
+COPY ./iter_ingress/Cargo.toml ./
 
 RUN mkdir src/
 RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs
@@ -21,7 +23,7 @@ RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main
 RUN cargo build --release
 
 # Build the executable using the actual source code
-COPY drawbridge_ingress /app/drawbridge_ingress
+COPY iter_ingress /app/iter_ingress
 RUN touch src/main.rs
 # RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN cargo build --release
@@ -39,4 +41,4 @@ RUN update-ca-certificates
 
 COPY --from=builder /app/target/release/ ./ingress
 
-CMD [ "./ingress/drawbridge_ingress" ]
+CMD [ "./ingress/iter_ingress" ]

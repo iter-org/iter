@@ -19,7 +19,7 @@ use kube_config_tracker::{ChangeType, RoutingTable};
 use proxy::proxy_request;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tls_acceptor::tls_acceptor::TlsAcceptor;
+use iter_tls_acceptor::tls_acceptor::TlsAcceptor;
 
 use crate::error::{Code, IngressLoadBalancerError};
 
