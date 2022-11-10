@@ -1,70 +1,118 @@
-use k8s_openapi::api::core::v1::Secret;
-use kube::{Client, Api, api::PostParams};
-use serde::{Serialize};
-use dialoguer::{console::style};
-use serde_json::json;
+use std::fmt::Debug;
+
+use dialoguer::console::style;
+use k8s_openapi::{NamespaceResourceScope};
+use kube::{api::PostParams, Api, Client, Resource};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub async fn get_client() -> Result<Client, anyhow::Error> {
     let client = Client::try_default().await;
     match client {
         Ok(client) => Ok(client),
         Err(err) => {
-            eprintln!("{} {}",
+            eprintln!(
+                "{} {}",
                 style("✖").red().bold(),
                 style("Failed to connect to Kubernetes").red().bold(),
             );
-            eprintln!("{} {} {}\n{} {}\n{:#?}",
+            eprintln!(
+                "{} {} {} {}\n{:#?}",
                 style("?").blue().bold(),
                 style("Perhaps try").cyan(),
                 style("kubectl get pods").blue().bold(),
-                style("?").blue().bold(),
                 style("to see if you have access to the cluster").cyan(),
                 style(&err).red(),
             );
             Err(anyhow::anyhow!(err))
-        },
+        }
     }
 }
 
-// pub async fn create_secret<D: Serialize + DeserializeOwned>(secret_name: &str, namespace: &str) -> Result<Option<D>, anyhow::Error> {
-//     let client = get_client().await;
-//     let secret_api: Api<Secret> = Api::namespaced(client, &namespace);
-
-    
-// }
-
-pub async fn generate_secret_object<S: Serialize>(secret: S, name: &str, namespace: &str) -> Result<Secret, anyhow::Error> {
-    serde_json::from_value(json!({
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {
-            "name": &name,
-            "namespace": &namespace
-        },
-        "data": {
-            "secret": base64::encode(&serde_json::to_string(&secret)?),
-        }
-    })).map_err(|e| anyhow::anyhow!(e))
-}
-
-// create namespace object
-// run create_or_replace_kubernetes_resource(namespace_object: serde_json::Value)
-
-pub async fn create_or_update_kube_secrets<S: Serialize>(secret: S, name: &str, namespace: &str) -> Result<(), anyhow::Error> {
+pub async fn create_or_update_namespaced_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource<Scope = NamespaceResourceScope>>(
+    resource: serde_json::Value,
+) -> Result<(), anyhow::Error>
+where
+    <R as Resource>::DynamicType: Default
+{
     let client = get_client().await?;
-    let secret = generate_secret_object(secret, name, namespace).await?;
-    let secret_api: Api<Secret> = Api::namespaced(client, &namespace);
+    
+    let namespace = match resource["metadata"]["namespace"].as_str() {
+        Some(namespace) => namespace.to_string(),
+        None => Err(anyhow::anyhow!("No namespace provided in resource"))?,
+    };
+    let name = match resource["metadata"]["name"].as_str() {
+        Some(name) => name.to_string(),
+        None => Err(anyhow::anyhow!("No name provided in resource"))?,
+    };
 
-    match secret_api.create(&PostParams::default(),&secret).await {
-        Ok(_) => println!("{} Created secret {} in namespace {}",
-            style("✔").green().bold(),
-            style(name).green(),
-            style(namespace).green()
-        ),
-        Err(kube::Error::Api(kube::core::ErrorResponse { reason, .. })) if reason == "AlreadyExists" => {
-            secret_api.replace(name, &PostParams::default(), &secret).await?;
+    let kind = match resource["kind"].as_str() {
+        Some(kind) => kind.to_string(),
+        None => Err(anyhow::anyhow!("No kind provided in resource"))?,
+    };
+
+    let api: Api<R> = Api::namespaced(client, &namespace);
+
+    match api.create(&PostParams::default(), &serde_json::from_value(resource.clone())?).await {
+        Ok(_) => {}
+        Err(kube::Error::Api(kube::core::ErrorResponse { reason, .. }))
+            if reason == "AlreadyExists" =>
+        {
+            api
+                .replace(&name, &PostParams::default(), &serde_json::from_value(resource)?)
+                .await?;
         }
-        Err(e) => panic!("Error getting secret: {:?}", e),
+        Err(e) => Err(anyhow::anyhow!(e))?,
     }
+    println!(
+        "{} {} {} {} {}",
+        style("✔").green().bold(),
+        style(format!("Created {}", kind)).white().bold(),
+        style(name).green(),
+        style("in namespace").white().bold(),
+        style(namespace).green()
+    );
+
+    Ok(())
+}
+
+pub async fn create_or_update_cluster_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource>(
+    resource: serde_json::Value,
+) -> Result<(), anyhow::Error>
+where
+    <R as Resource>::DynamicType: Default
+{
+    let client = get_client().await?;
+    
+    let name = match resource["metadata"]["name"].as_str() {
+        Some(name) => name.to_string(),
+        None => Err(anyhow::anyhow!("No name provided in resource"))?,
+    };
+
+    let kind = match resource["kind"].as_str() {
+        Some(kind) => kind.to_string(),
+        None => Err(anyhow::anyhow!("No kind provided in resource"))?,
+    };
+
+    let api: Api<R> = Api::all(client);
+
+    match api.create(&PostParams::default(), &serde_json::from_value(resource.clone())?).await {
+        Ok(_) => {},
+        Err(kube::Error::Api(kube::core::ErrorResponse { reason, .. }))
+            if reason == "AlreadyExists" =>
+        {
+            api
+                .replace(&name, &PostParams::default(), &serde_json::from_value(resource)?)
+                .await?;
+        }
+        Err(e) => Err(anyhow::anyhow!(e))?,
+    }
+
+    println!(
+        "{} {}: {}",
+        style("✔").green().bold(),
+        style(format!("Created {}", kind)).white().bold(),
+        style(name).green(),
+    );
+
     Ok(())
 }

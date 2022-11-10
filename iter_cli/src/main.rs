@@ -6,14 +6,14 @@
 //! - [ ] iter setup - requires a valid kubeconfig (choose from a list of available kubeconfigs)
 //! 
 
-
-use clap::Parser;
-
-use cli_kube::create_or_update_kube_secrets;
-use dialoguer::{theme::ColorfulTheme, Input, console::style};
-use serde_json::json;
 mod cli_types;
 mod cli_kube;
+mod commands;
+mod utils;
+
+use clap::Parser;
+use commands::install::install_command;
+
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> { 
@@ -27,35 +27,7 @@ async fn cli(args: impl Iterator<Item = String>) -> Result<(), anyhow::Error> {
     }
 }
 
-async fn install_command(cli_types::InstallCommand { domain, github_secret }: cli_types::InstallCommand) -> Result<(), anyhow::Error> {
-    create_or_update_kube_secrets(json!(
-        {
-            "domain": unwrap_or_prompt(domain, "Iter domain")?,
-            "github_secret": unwrap_or_prompt(github_secret, "Github App secret")?
-        }
-    ), "iter-secrets", "iter").await?;
 
-    println!("{} {}",
-        style("✔").green().bold(),
-        style("Iter Install Completed").blue().bold(),
-    );
-    
-    Ok(())
-}
-
-fn unwrap_or_prompt(arg: Option<String>, prompt: &str) -> Result<String, anyhow::Error> {
-    match arg {
-        Some(arg) => Ok(arg),
-        None => request_missing_arg(prompt),
-    }
-}
-
-fn request_missing_arg(prompt: &str) -> Result<String, anyhow::Error> {
-    return Input::with_theme(&ColorfulTheme::default())
-        .with_prompt(prompt)
-        .interact()
-        .map_err(|e| anyhow::anyhow!(e));
-}
 
 #[tokio::test]
 async fn test_cli() -> Result<(), anyhow::Error> {
@@ -74,6 +46,6 @@ async fn test_cli_without_args() -> Result<(), anyhow::Error> {
     let args = vec![
         "iter".to_string(),
         "install".to_string()];
-        
+
     cli(args.into_iter()).await
 }

@@ -8,8 +8,6 @@ use clap::{Parser, Subcommand};
     long_about = None
 )]
 pub struct IterCLI {
-
-
     #[command(subcommand)]
     pub command: Command,
 }
