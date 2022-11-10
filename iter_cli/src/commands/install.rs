@@ -1,5 +1,3 @@
-
-
 // create namespace object
 // create secret object
 // create daemon set
@@ -11,11 +9,24 @@
 // create pod for database or redis
 
 use dialoguer::console::style;
-use k8s_openapi::{api::{core::v1::{Namespace, Secret, PodTemplateSpec, PodSpec, Container, EnvVar, EnvVarSource, ObjectFieldSelector, ResourceRequirements, ContainerPort, ServiceSpec, Service, ServicePort, ServiceAccount}, apps::v1::{DaemonSet, DaemonSetSpec}, rbac::v1::{ClusterRole, PolicyRule, ClusterRoleBinding, RoleRef, Subject}}, Metadata, apimachinery::pkg::{apis::meta::v1::LabelSelector, api::resource::Quantity, util::intstr::IntOrString}};
+use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetSpec};
+use k8s_openapi::api::core::v1::{
+    Container, ContainerPort, EnvVar, EnvVarSource, Namespace, ObjectFieldSelector, PodSpec,
+    PodTemplateSpec, ResourceRequirements, Secret, Service, ServiceAccount, ServicePort,
+    ServiceSpec,
+};
+use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, PolicyRule, RoleRef, Subject};
+use k8s_openapi::apimachinery::pkg::{
+    api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+};
 use kube::core::ObjectMeta;
 use serde_json::json;
 
-use crate::{cli_kube::{create_or_update_namespaced_resource, create_or_update_cluster_resource}, cli_types, utils::unwrap_or_prompt};
+use crate::{
+    cli_kube::{create_or_update_cluster_resource, create_or_update_namespaced_resource},
+    cli_types,
+    utils::unwrap_or_prompt,
+};
 
 const ITER_NAMESPACE: &str = "iter";
 const ITER_INGRESS_POD_NAME: &str = "iter-ingress-pod";
@@ -25,7 +36,12 @@ const ITER_INGRESS_ROLE_NAME: &str = "iter-ingress-role";
 const ITER_INGRESS_ROLE_BINDING_NAME: &str = "iter-ingress-role-binding";
 const ITER_DAEMONSET_NAME: &str = "iter-daemonset";
 
-pub async fn install_command(cli_types::InstallCommand { domain, github_secret }: cli_types::InstallCommand) -> Result<(), anyhow::Error> {
+pub async fn install_command(
+    cli_types::InstallCommand {
+        domain,
+        github_secret,
+    }: cli_types::InstallCommand,
+) -> Result<(), anyhow::Error> {
     let domain = unwrap_or_prompt(domain, "Provide iter domain")?;
     let github_secret = unwrap_or_prompt(github_secret, "Provide Github app secret")?;
 
@@ -35,7 +51,8 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
         "metadata": {
             "name": &ITER_NAMESPACE
         }
-    })).await?;
+    }))
+    .await?;
 
     create_or_update_namespaced_resource::<Secret>(json!({
         "apiVersion": "v1",
@@ -52,7 +69,8 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
                 }
             ))?),
         }
-    })).await?;
+    }))
+    .await?;
 
     let daemonset = DaemonSet {
         metadata: ObjectMeta {
@@ -62,58 +80,62 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
         },
         spec: Some(DaemonSetSpec {
             selector: LabelSelector {
-                match_labels: Some([
-                    ("app".to_string(), ITER_INGRESS_POD_NAME.to_string())
-                ].into_iter().collect()),
+                match_labels: Some(
+                    [("app".to_string(), ITER_INGRESS_POD_NAME.to_string())]
+                        .into_iter()
+                        .collect(),
+                ),
                 ..Default::default()
             },
             template: PodTemplateSpec {
                 metadata: Some(ObjectMeta {
-                    labels: Some([
-                        ("app".to_string(), ITER_INGRESS_POD_NAME.to_string())
-                    ].into_iter().collect()),
+                    labels: Some(
+                        [("app".to_string(), ITER_INGRESS_POD_NAME.to_string())]
+                            .into_iter()
+                            .collect(),
+                    ),
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
                     service_account_name: Some(ITER_SERVICE_ACCOUNT_NAME.to_string()),
                     termination_grace_period_seconds: Some(0),
-                    containers: vec![
-                        Container {
-                            name: ITER_INGRESS_POD_NAME.to_string(),
-                            image: Some("iter/ingress".to_string()),
-                            env: Some(vec![
-                                EnvVar {
-                                    name: "CURRENT_POD_NAME".to_string(),
-                                    value_from: Some(EnvVarSource {
-                                        field_ref: Some(ObjectFieldSelector {
-                                            field_path: "metadata.name".to_string(),
-                                            ..Default::default()
-                                        }),
-                                        ..Default::default()
-                                    }),
+                    containers: vec![Container {
+                        name: ITER_INGRESS_POD_NAME.to_string(),
+                        image: Some("iter/ingress".to_string()),
+                        env: Some(vec![EnvVar {
+                            name: "CURRENT_POD_NAME".to_string(),
+                            value_from: Some(EnvVarSource {
+                                field_ref: Some(ObjectFieldSelector {
+                                    field_path: "metadata.name".to_string(),
                                     ..Default::default()
-                                }
-                            ]),
-                            resources: Some(ResourceRequirements {
-                                limits: Some([
-                                    ("memory".to_string(), Quantity("50Mi".to_string())),
-                                    ("cpu".to_string(), Quantity("0.4".to_string()))
-                                ].into_iter().collect()),
+                                }),
                                 ..Default::default()
                             }),
-                            ports: Some(vec![
-                                ContainerPort {
-                                    container_port: 80,
-                                    ..Default::default()
-                                },
-                                ContainerPort {
-                                    container_port: 443,
-                                    ..Default::default()
-                                }
-                            ]),
                             ..Default::default()
-                        }
-                    ],
+                        }]),
+                        resources: Some(ResourceRequirements {
+                            limits: Some(
+                                [
+                                    ("memory".to_string(), Quantity("50Mi".to_string())),
+                                    ("cpu".to_string(), Quantity("0.4".to_string())),
+                                ]
+                                .into_iter()
+                                .collect(),
+                            ),
+                            ..Default::default()
+                        }),
+                        ports: Some(vec![
+                            ContainerPort {
+                                container_port: 80,
+                                ..Default::default()
+                            },
+                            ContainerPort {
+                                container_port: 443,
+                                ..Default::default()
+                            },
+                        ]),
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -133,9 +155,11 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
         },
         spec: Some(ServiceSpec {
             type_: Some("NodePort".to_string()),
-            selector: Some([
-                ("app".to_string(), ITER_INGRESS_POD_NAME.to_string())
-            ].into_iter().collect()),
+            selector: Some(
+                [("app".to_string(), ITER_INGRESS_POD_NAME.to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
             ports: Some(vec![
                 ServicePort {
                     name: Some("http".to_string()),
@@ -152,7 +176,7 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
                     port: 30002,
                     target_port: Some(IntOrString::Int(443)),
                     ..Default::default()
-                }
+                },
             ]),
             ..Default::default()
         }),
@@ -171,36 +195,27 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
                 api_groups: Some(vec![
                     "extensions".to_string(),
                     "networking.k8s.io".to_string(),
-                    "".to_string()
+                    "".to_string(),
                 ]),
                 resources: Some(vec![
                     "ingresses".to_string(),
                     "pods".to_string(),
                     "services".to_string(),
-                    "secrets".to_string()
+                    "secrets".to_string(),
                 ]),
-                verbs: vec![
-                    "get".to_string(),
-                    "list".to_string(),
-                    "watch".to_string()
-                ],
+                verbs: vec!["get".to_string(), "list".to_string(), "watch".to_string()],
                 ..Default::default()
             },
             PolicyRule {
                 api_groups: Some(vec![
                     "extensions".to_string(),
                     "networking.k8s.io".to_string(),
-                    "".to_string()
+                    "".to_string(),
                 ]),
-                resources: Some(vec![
-                    "secrets".to_string()
-                ]),
-                verbs: vec![
-                    "update".to_string(),
-                    "create".to_string()
-                ],
+                resources: Some(vec!["secrets".to_string()]),
+                verbs: vec!["update".to_string(), "create".to_string()],
                 ..Default::default()
-            }
+            },
         ]),
         ..Default::default()
     };
@@ -218,18 +233,19 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
             name: ITER_INGRESS_ROLE_NAME.to_string(),
             ..Default::default()
         },
-        subjects: Some(vec![
-            Subject {
-                kind: "ServiceAccount".to_string(),
-                name: ITER_SERVICE_ACCOUNT_NAME.to_string(),
-                namespace: Some(ITER_NAMESPACE.to_string()),
-                ..Default::default()
-            }
-        ]),
+        subjects: Some(vec![Subject {
+            kind: "ServiceAccount".to_string(),
+            name: ITER_SERVICE_ACCOUNT_NAME.to_string(),
+            namespace: Some(ITER_NAMESPACE.to_string()),
+            ..Default::default()
+        }]),
         ..Default::default()
     };
 
-    create_or_update_cluster_resource::<ClusterRoleBinding>(serde_json::to_value(cluster_role_binding)?).await?;
+    create_or_update_cluster_resource::<ClusterRoleBinding>(serde_json::to_value(
+        cluster_role_binding,
+    )?)
+    .await?;
 
     let service_account = ServiceAccount {
         metadata: ObjectMeta {
@@ -240,12 +256,14 @@ pub async fn install_command(cli_types::InstallCommand { domain, github_secret }
         ..Default::default()
     };
 
-    create_or_update_namespaced_resource::<ServiceAccount>(serde_json::to_value(service_account)?).await?;
+    create_or_update_namespaced_resource::<ServiceAccount>(serde_json::to_value(service_account)?)
+        .await?;
 
-    println!("{} {}",
+    println!(
+        "{} {}",
         style("✔").green().bold(),
         style("Iter Install Completed").white().bold(),
     );
-    
+
     Ok(())
 }

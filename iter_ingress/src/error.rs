@@ -9,7 +9,6 @@ pub enum IngressLoadBalancerError {
 #[derive(Debug)]
 pub enum Code {
     NonExistentHost,
-    CouldNotReachBackend,
     WebsocketUpgradeError,
     InternalServerError,
     CouldNotGenerateCertificate,
@@ -19,7 +18,6 @@ impl std::fmt::Display for Code {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Code::NonExistentHost => write!(f, "NonExistentHost"),
-            Code::CouldNotReachBackend => write!(f, "CouldNotReachBackend"),
             Code::WebsocketUpgradeError => write!(f, "WebsocketUpgradeError"),
             Code::InternalServerError => write!(f, "InternalServerError"),
             Code::CouldNotGenerateCertificate => write!(f, "CouldNotGenerateCertificate"),
