@@ -9,8 +9,6 @@ COPY Cargo.toml ./
 COPY iter_letsencrypt ./iter_letsencrypt
 COPY iter_congress ./iter_congress
 COPY iter_tls_acceptor ./iter_tls_acceptor
-COPY iter_api_server ./iter_api_server
-COPY iter_cli ./iter_cli
 
 WORKDIR /app/iter_ingress
 

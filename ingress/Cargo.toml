@@ -1,10 +1,8 @@
 [workspace]
 
 members = [
-    "iter_api_server",
     "iter_ingress",
     "iter_letsencrypt",
     "iter_congress",
     "iter_tls_acceptor",
-    "iter_cli"
 ]
