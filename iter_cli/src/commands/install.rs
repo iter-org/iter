@@ -35,6 +35,7 @@ const ITER_SERVICE_NAME: &str = "iter-service";
 const ITER_INGRESS_ROLE_NAME: &str = "iter-ingress-role";
 const ITER_INGRESS_ROLE_BINDING_NAME: &str = "iter-ingress-role-binding";
 const ITER_DAEMONSET_NAME: &str = "iter-daemonset";
+const INGRESS_DAEMONSET_IMAGE: &str = "public.ecr.aws/k2s9w9h5/iter/ingress:latest";
 
 pub async fn install_command(
     cli_types::InstallCommand {
@@ -101,7 +102,7 @@ pub async fn install_command(
                     termination_grace_period_seconds: Some(0),
                     containers: vec![Container {
                         name: ITER_INGRESS_POD_NAME.to_string(),
-                        image: Some("iter/ingress".to_string()),
+                        image: Some(INGRESS_DAEMONSET_IMAGE.to_string()),
                         env: Some(vec![EnvVar {
                             name: "CURRENT_POD_NAME".to_string(),
                             value_from: Some(EnvVarSource {

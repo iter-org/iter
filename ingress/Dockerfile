@@ -1,5 +1,5 @@
 # Build the executable
-FROM rust:bullseye as builder
+FROM --platform=$BUILDPLATFORM rust:bullseye as builder
 WORKDIR /app
 # RUN rustup toolchain install nightly-2022-03-22
 RUN rustup default nightly
@@ -30,7 +30,7 @@ RUN cargo build --release
 
 # == == ==
 # Copy the executable and extra files ("static") to an empty Docker image
-FROM debian:bullseye
+FROM --platform=$BUILDPLATFORM debian:bullseye
 
 # Install libssl-dev and pkg-config
 RUN apt-get update && apt-get install -y libssl-dev pkg-config
