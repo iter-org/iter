@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use api::create_app;
+use server::create_app;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

@@ -8,7 +8,7 @@ use mongodb::{bson::{oid::ObjectId, doc}};
 use secrets::BackendSecrets;
 use serde::{Deserialize, Serialize};
 
-use super::{utils::model::Model, OrganisationMember, Organisation, Profile, sidebar::Sidebar};
+use super::{utils::model::Model, OrganisationMember, Organisation};
 
 /// We only load the basic info from the db and metadata needed for the user for authentication,
 /// logging, and other purposes.
@@ -95,26 +95,6 @@ impl User {
             doc!{
                 "_id": {
                     "$in": org_members.into_iter().map(|member| member.organisation_id).collect::<Vec<ObjectId>>()
-                }
-            },
-            100
-        ).await?)
-    }
-
-    pub async fn profiles(&self, state: &State) -> Result<Vec<Profile>, anyhow::Error> {
-        let org_members: Vec<OrganisationMember> = OrganisationMember::find_many(
-            state,
-            doc!{
-                "user_id": self._id,
-            },
-            100
-        ).await?;
-
-        Ok(Profile::find_many(
-            state,
-            doc!{
-                "_id": {
-                    "$in": org_members.into_iter().map(|member| member.profiles).flatten().collect::<Vec<ObjectId>>()
                 }
             },
             100

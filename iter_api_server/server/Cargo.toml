@@ -22,5 +22,4 @@ envoy_http = "0.2.2"
 anyhow = "1.0.64"
 async-trait = "0.1.57"
 futures = "0.3.24"
-async-stripe = { version = "0.15.0", features = ["runtime-tokio-hyper-rustls"] }
 zxcvbn = "2.2.1"

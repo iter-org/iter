@@ -1,10 +1,8 @@
-use std::str::FromStr;
-
 use castle_api::types::State;
 use mongodb::bson::{oid::ObjectId, doc, bson};
 use serde::{Serialize, Deserialize};
 
-use super::{utils::model::Model, User, Profile};
+use super::{utils::model::Model, User};
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,23 +66,6 @@ impl OrganisationMember {
         self.organisation_id.to_hex()
     }
 
-    pub async fn profiles(&self, _state: &State) -> Result<Vec<Profile>, anyhow::Error> {
-        let mut profiles: Vec<Profile> = Vec::new();
-        for profile in &self.profiles {
-            profiles.push(Profile::find_by_id(profile.clone(), _state).await?)
-        }
-        Ok(profiles)
-    }
-
-    pub async fn update_profiles(&self, _state: &State, profiles: Vec<String>) -> Result<(), anyhow::Error> {
-        let converted_profiles: Vec<ObjectId> = profiles.iter().map(|profile| ObjectId::from_str(profile).unwrap()).collect();
-        OrganisationMember::update(_state, &self._id.clone(), doc! {
-            "$set": {
-                "profiles": converted_profiles
-            }
-        }).await?;
-        Ok(())
-    }
     pub fn user_id(&self, _state: &State) -> String {
         self.user_id.to_hex()
     }
