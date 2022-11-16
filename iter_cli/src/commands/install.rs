@@ -40,11 +40,9 @@ const INGRESS_DAEMONSET_IMAGE: &str = "public.ecr.aws/k2s9w9h5/iter/ingress:late
 pub async fn install_command(
     cli_types::InstallCommand {
         domain,
-        github_secret,
     }: cli_types::InstallCommand,
 ) -> Result<(), anyhow::Error> {
     let domain = unwrap_or_prompt(domain, "Provide iter domain")?;
-    let github_secret = unwrap_or_prompt(github_secret, "Provide Github app secret")?;
 
     create_or_update_cluster_resource::<Namespace>(json!({
         "apiVersion": "v1",
@@ -66,7 +64,6 @@ pub async fn install_command(
             "secret": base64::encode(&serde_json::to_string(&json!(
                 {
                     "domain": domain,
-                    "github_secret": github_secret
                 }
             ))?),
         }

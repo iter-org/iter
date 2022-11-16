@@ -28,9 +28,6 @@ pub struct InstallCommand {
     /// the domain of the project
     #[arg(short, long)]
     pub domain: Option<String>,
-    /// github app secret
-    #[arg(short, long)]
-    pub github_secret: Option<String>,
 }
 
 // iter setup {domain} {github secrets}

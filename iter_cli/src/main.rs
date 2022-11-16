@@ -35,8 +35,7 @@ async fn test_cli() -> Result<(), anyhow::Error> {
         "install".to_string(),
         "-d".to_string(),
         "domain".to_string(),
-        "-g".to_string(),
-        "github_secret".to_string()];
+    ];
 
     cli(args.into_iter()).await
 }
