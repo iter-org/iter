@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     graph::create_state_from_context,
-    models::{utils::model::Model, User, OrganisationMember},
+    models::{utils::model::Model, User, ProjectMember, Deployment},
 };
 
 pub struct IndexMiddleware {
@@ -44,21 +44,28 @@ impl IndexMiddleware {
 async fn create_indexes(state: &State) -> Result<(), anyhow::Error> {
     User::create_index(
         &state,
-        doc! { "email": 1 },
+        doc! { "github_id": 1 },
         IndexOptions::builder().unique(true).build(),
     ).await?;
 
-    OrganisationMember::create_index(
+    ProjectMember::create_index(
         &state,
-        doc! { "user_id": 1 },
-        IndexOptions::builder().unique(false).build()
+        doc! { "user_id": 1, "project_id": 1 },
+        IndexOptions::builder().unique(true).build()
     ).await?;
 
-    OrganisationMember::create_index(
+    ProjectMember::create_index(
         &state,
-        doc! { "organisation_id": 1 },
+        doc! { "project_id": 1 },
         IndexOptions::builder().unique(false).build()
     ).await?;
+    
+    Deployment::create_index(
+        &state,
+        doc! { "hash": 1 },
+        IndexOptions::builder().unique(true).build()
+    ).await?;
+
 
     Ok(())
 }

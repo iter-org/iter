@@ -1,11 +1,13 @@
 
 mod root;
 mod user;
-mod organisation;
-mod organisation_member;
+mod project;
+mod project_member;
+mod deployment;
 pub(crate) mod utils;
 
 pub use user::User;
-pub use organisation::Organisation;
-pub use organisation_member::OrganisationMember;
+pub use project::Project;
+pub use project_member::ProjectMember;
+pub use deployment::Deployment;
 pub use root::Root;

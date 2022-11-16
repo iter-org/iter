@@ -51,8 +51,8 @@ pub async fn graph_handler(
     // Authenticate the user
     if let Some(auth_token) = req.auth_token {
         let secret = state.borrow::<Arc<BackendSecrets>>();
-        let user = User::authenticate_from_token(&auth_token, &secret.jwt_secret, &state).await?;
-        state.insert(user);
+        // let user = User::authenticate_from_token(&auth_token, &secret.jwt_secret, &state).await?;
+        // state.insert(user);
     }
 
     let json = match castle.run_message(&req.query, &state).await {
