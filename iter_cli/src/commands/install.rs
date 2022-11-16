@@ -9,7 +9,7 @@
 // create pod for database or redis
 
 use dialoguer::console::style;
-use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetSpec};
+use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetSpec, Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EnvVar, EnvVarSource, Namespace, ObjectFieldSelector, PodSpec,
     PodTemplateSpec, ResourceRequirements, Secret, Service, ServiceAccount, ServicePort,
@@ -36,6 +36,7 @@ const ITER_INGRESS_ROLE_NAME: &str = "iter-ingress-role";
 const ITER_INGRESS_ROLE_BINDING_NAME: &str = "iter-ingress-role-binding";
 const ITER_DAEMONSET_NAME: &str = "iter-daemonset";
 const INGRESS_DAEMONSET_IMAGE: &str = "public.ecr.aws/k2s9w9h5/iter/ingress:latest";
+const ITER_MONGO_DB_DEPLOYMENT_NAME: &str = "iter-mongodb";
 
 pub async fn install_command(
     cli_types::InstallCommand {
@@ -256,6 +257,52 @@ pub async fn install_command(
 
     create_or_update_namespaced_resource::<ServiceAccount>(serde_json::to_value(service_account)?)
         .await?;
+
+    let mongo_db_deployment = Deployment {
+        metadata: ObjectMeta {
+            name: Some(ITER_MONGO_DB_DEPLOYMENT_NAME.to_string()),
+            namespace: Some(ITER_NAMESPACE.to_string()),
+            ..Default::default()
+        },
+        spec: Some(DeploymentSpec {
+            replicas: Some(1),
+            selector: LabelSelector {
+                match_labels: Some(
+                    [("app".to_string(), "mongo-container".to_string())]
+                        .into_iter()
+                        .collect(),
+                ),
+                ..Default::default()
+            },
+            template: PodTemplateSpec {
+                metadata: Some(ObjectMeta {
+                    labels: Some(
+                        [("app".to_string(), "mongo-container".to_string())]
+                            .into_iter()
+                            .collect(),
+                    ),
+                    ..Default::default()
+                }),
+                spec: Some(PodSpec {
+                    containers: vec![Container {
+                        name: "mongo-container".to_string(),
+                        image: Some("mongo".to_string()),
+                        ports: Some(vec![ContainerPort {
+                            container_port: 27017,
+                            ..Default::default()
+                        }]),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    create_or_update_namespaced_resource::<Deployment>(serde_json::to_value(mongo_db_deployment)?).await?;
 
     println!(
         "{} {}",

@@ -29,7 +29,7 @@ pub async fn get_client() -> Result<Client, anyhow::Error> {
 }
 
 pub async fn create_or_update_namespaced_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource<Scope = NamespaceResourceScope>>(
-    resource: serde_json::Value,
+    mut resource: serde_json::Value,
 ) -> Result<(), anyhow::Error>
 where
     <R as Resource>::DynamicType: Default
@@ -52,17 +52,22 @@ where
 
     let api: Api<R> = Api::namespaced(client, &namespace);
 
-    match api.create(&PostParams::default(), &serde_json::from_value(resource.clone())?).await {
-        Ok(_) => {}
-        Err(kube::Error::Api(kube::core::ErrorResponse { reason, .. }))
-            if reason == "AlreadyExists" =>
-        {
-            api
-                .replace(&name, &PostParams::default(), &serde_json::from_value(resource)?)
-                .await?;
+    // Check if resource exists
+    let resource_version = match api.get(&name).await {
+        Ok(resource) => serde_json::to_value(resource)?["metadata"]["resourceVersion"].as_str().map(|val| val.to_string()),
+        Err(_) => None
+    };
+
+    match resource_version {
+        Some(resource_version) => {
+            resource["metadata"]["resourceVersion"] = serde_json::Value::String(resource_version);
+            api.replace(&name, &PostParams::default(), &serde_json::from_value(resource)?).await?;
+        },
+        None => {
+            api.create(&PostParams::default(), &serde_json::from_value(resource)?).await?;
         }
-        Err(e) => Err(anyhow::anyhow!(e))?,
     }
+
     println!(
         "{} {} {} {} {}",
         style("✔").green().bold(),
@@ -76,7 +81,7 @@ where
 }
 
 pub async fn create_or_update_cluster_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource>(
-    resource: serde_json::Value,
+    mut resource: serde_json::Value,
 ) -> Result<(), anyhow::Error>
 where
     <R as Resource>::DynamicType: Default
@@ -95,17 +100,22 @@ where
 
     let api: Api<R> = Api::all(client);
 
-    match api.create(&PostParams::default(), &serde_json::from_value(resource.clone())?).await {
-        Ok(_) => {},
-        Err(kube::Error::Api(kube::core::ErrorResponse { reason, .. }))
-            if reason == "AlreadyExists" =>
-        {
-            api
-                .replace(&name, &PostParams::default(), &serde_json::from_value(resource)?)
-                .await?;
+    // Check if resource exists
+    let resource_version = match api.get(&name).await {
+        Ok(resource) => serde_json::to_value(resource)?["metadata"]["resourceVersion"].as_str().map(|val| val.to_string()),
+        Err(_) => None
+    };
+
+    match resource_version {
+        Some(resource_version) => {
+            resource["metadata"]["resourceVersion"] = serde_json::Value::String(resource_version);
+            api.replace(&name, &PostParams::default(), &serde_json::from_value(resource)?).await?;
+        },
+        None => {
+            api.create(&PostParams::default(), &serde_json::from_value(resource)?).await?;
         }
-        Err(e) => Err(anyhow::anyhow!(e))?,
     }
+
 
     println!(
         "{} {}: {}",
