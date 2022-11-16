@@ -21,17 +21,6 @@ impl Model for ProjectMember {
 }
 
 
-/// ```
-/// struct OrganisationMember {
-///     _id: ObjectID,
-///     organisation_id: ObjectID,
-///     date_joined: Date,
-///     date_invited: Date,
-///     email: String,
-///     user_id: ObjectID,
-///     profiles: Vec<ObjectID>,
-/// }
-/// ```
 impl ProjectMember {
     pub async fn create_project_member(
         state: &State,

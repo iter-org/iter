@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{utils::model::Model, project::Project, project_member::ProjectMember};
 
-/// We only load the basic info from the db and metadata needed for the user for authentication,
-/// logging, and other purposes.
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct User {
     pub _id: ObjectId,

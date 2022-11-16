@@ -17,14 +17,7 @@ impl Model for Project {
 }
 
 impl Project {
-    /// Create a new organisation in the database.
-    ///
-    /// ## Algorithm
-    /// 1. Create the [Organisation] with required information
-    /// 2. Create the first [Profile] and attach it to the organisation
-    /// 3. Create the first [OrganisationMember] and attach it to the organisation
-    /// 4. Return the [Organisation] [ObjectId]
-    // directive authenticated
+
     pub async fn create_project(state: &State, name: &str, git_url: &str) -> Result<ObjectId, anyhow::Error> {
         let user = state.borrow::<User>();
 

@@ -19,7 +19,7 @@ pub struct Deployment {
 enum DeploymentKind {
     GitCommit(String),
     PullRequest(ObjectId),
-    Manual(ObjectId) // object id to a user
+    Manual(ObjectId) 
 }
 
 impl Model for Deployment {
