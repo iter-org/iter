@@ -8,10 +8,7 @@ pub async fn create_app() -> Result<envoy_http::Server, anyhow::Error> {
 
     app.with(middleware::ErrorMiddleware);
     app.with(middleware::LogMiddleware);
-    app.with(middleware::NamespaceMiddleware::create().await);
     app.with(middleware::SecretMiddleware::create().await?);
-    app.with(middleware::MongoDBMiddleware::new());
-    app.with(middleware::IndexMiddleware::new());
 
     app.at("/")
         .post(graph::CastleEndpoint::create().await);

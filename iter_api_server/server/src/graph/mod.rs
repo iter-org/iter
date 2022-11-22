@@ -4,11 +4,10 @@ use std::sync::Arc;
 
 use castle_api::{async_trait, Castle, types::State};
 use envoy_http::{Endpoint, Response, Body};
-use mongodb::Client as MongoClient;
-use secrets::BackendSecrets;
+use crate::middleware::BackendSecrets;
 use serde_json::json;
 
-use crate::{models::{Root, User}, middleware::KubernetesNamespace};
+use crate::{models::{Root, User}};
 
 pub struct CastleEndpoint {
     pub castle: Castle,
@@ -78,7 +77,5 @@ pub async fn graph_handler(
 pub fn create_state_from_context(ctx: &mut envoy_http::Context) -> State {
     let mut state = State::new();
     ctx.try_borrow::<Arc<BackendSecrets>>().cloned().map(|secret| state.insert(secret));
-    ctx.try_borrow::<MongoClient>().cloned().map(|client| state.insert(client));
-    ctx.try_borrow::<KubernetesNamespace>().cloned().map(|secret| state.insert(secret));
     state
 }

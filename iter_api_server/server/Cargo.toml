@@ -12,7 +12,6 @@ tracing-subscriber = "0.3.11"
 serde_json = "1.0.79"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 jsonwebtoken = "8.1.0"
-secrets = { path = "../secrets" }
 serde = "1.0.137"
 lazy_static = "1.4.0"
 mongodb = { version = "2.3.0", features = ["tokio-runtime"] }
@@ -26,3 +25,5 @@ zxcvbn = "2.2.1"
 octorust = "0.1.37"
 nom_pem = "4.0.0"
 rand = "0.8.5"
+kube = { version = "0.76.0", features = ["runtime","derive"] }
+k8s-openapi = { version = "0.16.0", default-features = false, features = ["v1_22"] }

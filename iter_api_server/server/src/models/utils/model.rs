@@ -10,7 +10,6 @@ use mongodb::{
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::middleware::KubernetesNamespace;
 use futures::stream::{StreamExt};
 
 #[async_trait::async_trait]
@@ -19,25 +18,7 @@ pub(crate) trait Model: Send + Sized + Unpin + Sync + serde::de::DeserializeOwne
         std::any::type_name::<Self>().to_string()
     }
 
-    fn collection<T>(state: &State) -> Collection<T> {
-        state
-            .borrow::<MongoClient>()
-            .database(state.borrow::<KubernetesNamespace>().as_ref())
-            .collection(Self::collection_name())
-    }
-
     fn collection_name() -> &'static str;
-
-    async fn find_by_id<T: DeserializeOwned + Unpin + Send + Sync>(
-        id: ObjectId,
-        state: &State,
-    ) -> Result<T, anyhow::Error> {
-        Self::collection::<T>(state)
-            .find_one(doc! { "_id": id }, None)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to find {}: {}", Self::model_name(), e))?
-            .ok_or(anyhow::anyhow!("{} not found", Self::model_name()))
-    }
 
     async fn get_field<T: DeserializeOwned + Unpin + Send + Sync>(
         id: &ObjectId,
