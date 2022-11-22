@@ -37,7 +37,8 @@ const ITER_INGRESS_ROLE_BINDING_NAME: &str = "iter-ingress-role-binding";
 const ITER_DAEMONSET_NAME: &str = "iter-daemonset";
 const INGRESS_DAEMONSET_IMAGE: &str = "public.ecr.aws/k2s9w9h5/iter/ingress:latest";
 const ITER_MONGO_DB_DEPLOYMENT_NAME: &str = "iter-mongodb";
-
+const ITER_API_IMAGE_URL: &str = "public.ecr.aws/k2s9w9h5/iter/api:latest";
+const ITER_API_DEPLOYMENT_NAME: &str = "iter-api";
 pub async fn install_command(
     cli_types::InstallCommand {
         domain,
@@ -303,6 +304,50 @@ pub async fn install_command(
     };
 
     create_or_update_namespaced_resource::<Deployment>(serde_json::to_value(mongo_db_deployment)?).await?;
+
+    let api_image_deployment: Deployment = serde_json::from_value(
+        serde_json::json!({
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": ITER_API_DEPLOYMENT_NAME,
+                "namespace": ITER_NAMESPACE,
+                "labels": {
+                    "app": ITER_API_DEPLOYMENT_NAME
+                }
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "matchLabels": {
+                        "app": ITER_API_DEPLOYMENT_NAME
+                    }
+                },
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "app": ITER_API_DEPLOYMENT_NAME
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": ITER_API_DEPLOYMENT_NAME,
+                                "image": ITER_API_IMAGE_URL,
+                                "ports": [
+                                    {
+                                        "containerPort": 80
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }),
+    )?;
+
+    create_or_update_namespaced_resource::<Deployment>(serde_json::to_value(api_image_deployment)?).await?;
 
     println!(
         "{} {}",
