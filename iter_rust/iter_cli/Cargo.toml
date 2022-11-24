@@ -16,3 +16,7 @@ serde = "1.0.137"
 anyhow = "1.0.64"
 clap = {version = "4.0.18", features = ["derive"]}
 dialoguer = "0.10.2"
+async-trait = "0.1.58"
+json_value_merge = "1.1.2"
+path-clean = "0.1.0"
+iter_lib = { path = "../iter_lib" }

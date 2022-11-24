@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "iter_cli",
+    "iter_lib"
+]
