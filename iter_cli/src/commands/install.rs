@@ -8,6 +8,8 @@
 // create pod for backend
 // create pod for database or redis
 
+use std::collections::BTreeMap;
+
 use dialoguer::console::style;
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetSpec, Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
@@ -16,9 +18,15 @@ use k8s_openapi::api::core::v1::{
     ServiceSpec,
 };
 use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, PolicyRule, RoleRef, Subject};
+use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::{
+    CustomResourceDefinition, CustomResourceDefinitionNames, CustomResourceDefinitionSpec,
+    CustomResourceDefinitionVersion, CustomResourceValidation, JSONSchemaProps,
+    JSONSchemaPropsOrArray,
+};
 use k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
 };
+use k8s_openapi::ByteString;
 use kube::core::ObjectMeta;
 use serde_json::json;
 
@@ -36,43 +44,45 @@ const ITER_INGRESS_ROLE_NAME: &str = "iter-ingress-role";
 const ITER_INGRESS_ROLE_BINDING_NAME: &str = "iter-ingress-role-binding";
 const ITER_DAEMONSET_NAME: &str = "iter-daemonset";
 const INGRESS_DAEMONSET_IMAGE: &str = "public.ecr.aws/k2s9w9h5/iter/ingress:latest";
-const ITER_MONGO_DB_DEPLOYMENT_NAME: &str = "iter-mongodb";
 const ITER_API_IMAGE_URL: &str = "public.ecr.aws/k2s9w9h5/iter/api:latest";
 const ITER_API_DEPLOYMENT_NAME: &str = "iter-api";
 pub async fn install_command(
-    cli_types::InstallCommand {
-        domain,
-    }: cli_types::InstallCommand,
+    cli_types::InstallCommand { domain }: cli_types::InstallCommand,
 ) -> Result<(), anyhow::Error> {
     let domain = unwrap_or_prompt(domain, "Provide iter domain")?;
 
-    create_or_update_cluster_resource::<Namespace>(json!({
-        "apiVersion": "v1",
-        "kind": "Namespace",
-        "metadata": {
-            "name": &ITER_NAMESPACE
-        }
-    }))
-    .await?;
-
-    create_or_update_namespaced_resource::<Secret>(json!({
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {
-            "name": "iter-secret",
-            "namespace": &ITER_NAMESPACE
+    create_or_update_cluster_resource(Namespace {
+        metadata: ObjectMeta {
+            name: Some(ITER_NAMESPACE.to_string()),
+            ..Default::default()
         },
-        "data": {
-            "secret": base64::encode(&serde_json::to_string(&json!(
-                {
-                    "domain": domain,
-                }
-            ))?),
-        }
-    }))
+        ..Default::default()
+    })
     .await?;
 
-    let daemonset = DaemonSet {
+    create_or_update_namespaced_resource(Secret {
+        metadata: ObjectMeta {
+            name: Some("iter-secret".to_string()),
+            namespace: Some(ITER_NAMESPACE.to_string()),
+            ..Default::default()
+        },
+        data: Some(BTreeMap::from([(
+            "secret".into(),
+            ByteString(
+                base64::encode(&serde_json::to_string(&json!(
+                    {
+                        "domain": domain,
+                    }
+                ))?)
+                .into_bytes()
+                .to_vec(),
+            ),
+        )])),
+        ..Default::default()
+    })
+    .await?;
+
+    create_or_update_namespaced_resource(DaemonSet {
         metadata: ObjectMeta {
             name: Some(ITER_DAEMONSET_NAME.to_string()),
             namespace: Some(ITER_NAMESPACE.to_string()),
@@ -143,11 +153,10 @@ pub async fn install_command(
             ..Default::default()
         }),
         ..Default::default()
-    };
+    })
+    .await?;
 
-    create_or_update_namespaced_resource::<DaemonSet>(serde_json::to_value(daemonset)?).await?;
-
-    let service = Service {
+    create_or_update_namespaced_resource(Service {
         metadata: ObjectMeta {
             name: Some(ITER_SERVICE_NAME.to_string()),
             namespace: Some(ITER_NAMESPACE.to_string()),
@@ -181,11 +190,10 @@ pub async fn install_command(
             ..Default::default()
         }),
         ..Default::default()
-    };
+    })
+    .await?;
 
-    create_or_update_namespaced_resource::<Service>(serde_json::to_value(service)?).await?;
-
-    let cluster_role = ClusterRole {
+    create_or_update_cluster_resource(ClusterRole {
         metadata: ObjectMeta {
             name: Some(ITER_INGRESS_ROLE_NAME.to_string()),
             ..Default::default()
@@ -218,11 +226,10 @@ pub async fn install_command(
             },
         ]),
         ..Default::default()
-    };
+    })
+    .await?;
 
-    create_or_update_cluster_resource::<ClusterRole>(serde_json::to_value(cluster_role)?).await?;
-
-    let cluster_role_binding = ClusterRoleBinding {
+    create_or_update_cluster_resource(ClusterRoleBinding {
         metadata: ObjectMeta {
             name: Some(ITER_INGRESS_ROLE_BINDING_NAME.to_string()),
             ..Default::default()
@@ -240,28 +247,22 @@ pub async fn install_command(
             ..Default::default()
         }]),
         ..Default::default()
-    };
-
-    create_or_update_cluster_resource::<ClusterRoleBinding>(serde_json::to_value(
-        cluster_role_binding,
-    )?)
+    })
     .await?;
 
-    let service_account = ServiceAccount {
+    create_or_update_namespaced_resource(ServiceAccount {
         metadata: ObjectMeta {
             name: Some(ITER_SERVICE_ACCOUNT_NAME.to_string()),
             namespace: Some(ITER_NAMESPACE.to_string()),
             ..Default::default()
         },
         ..Default::default()
-    };
+    })
+    .await?;
 
-    create_or_update_namespaced_resource::<ServiceAccount>(serde_json::to_value(service_account)?)
-        .await?;
-
-    let mongo_db_deployment = Deployment {
+    create_or_update_namespaced_resource(Deployment {
         metadata: ObjectMeta {
-            name: Some(ITER_MONGO_DB_DEPLOYMENT_NAME.to_string()),
+            name: Some(ITER_API_DEPLOYMENT_NAME.to_string()),
             namespace: Some(ITER_NAMESPACE.to_string()),
             ..Default::default()
         },
@@ -269,7 +270,7 @@ pub async fn install_command(
             replicas: Some(1),
             selector: LabelSelector {
                 match_labels: Some(
-                    [("app".to_string(), "mongo-container".to_string())]
+                    [("app".to_string(), ITER_API_DEPLOYMENT_NAME.to_string())]
                         .into_iter()
                         .collect(),
                 ),
@@ -278,7 +279,7 @@ pub async fn install_command(
             template: PodTemplateSpec {
                 metadata: Some(ObjectMeta {
                     labels: Some(
-                        [("app".to_string(), "mongo-container".to_string())]
+                        [("app".to_string(), ITER_API_DEPLOYMENT_NAME.to_string())]
                             .into_iter()
                             .collect(),
                     ),
@@ -286,10 +287,10 @@ pub async fn install_command(
                 }),
                 spec: Some(PodSpec {
                     containers: vec![Container {
-                        name: "mongo-container".to_string(),
-                        image: Some("mongo".to_string()),
+                        name: ITER_API_DEPLOYMENT_NAME.to_string(),
+                        image: Some(ITER_API_IMAGE_URL.to_string()),
                         ports: Some(vec![ContainerPort {
-                            container_port: 27017,
+                            container_port: 80,
                             ..Default::default()
                         }]),
                         ..Default::default()
@@ -301,53 +302,236 @@ pub async fn install_command(
             ..Default::default()
         }),
         ..Default::default()
-    };
+    })
+    .await?;
 
-    create_or_update_namespaced_resource::<Deployment>(serde_json::to_value(mongo_db_deployment)?).await?;
-
-    let api_image_deployment: Deployment = serde_json::from_value(
-        serde_json::json!({
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": ITER_API_DEPLOYMENT_NAME,
-                "namespace": ITER_NAMESPACE,
-                "labels": {
-                    "app": ITER_API_DEPLOYMENT_NAME
-                }
+    //creates user
+    create_or_update_cluster_resource(CustomResourceDefinition {
+        metadata: ObjectMeta {
+            name: Some("iter-users.iter.earth".to_string()),
+            ..Default::default()
+        },
+        spec: CustomResourceDefinitionSpec {
+            group: "iter.earth".to_string(),
+            names: CustomResourceDefinitionNames {
+                kind: "User".to_string(),
+                plural: "iter-users".to_string(),
+                singular: Some("iter-user".to_string()),
+                ..Default::default()
             },
-            "spec": {
-                "replicas": 1,
-                "selector": {
-                    "matchLabels": {
-                        "app": ITER_API_DEPLOYMENT_NAME
-                    }
-                },
-                "template": {
-                    "metadata": {
-                        "labels": {
-                            "app": ITER_API_DEPLOYMENT_NAME
-                        }
-                    },
-                    "spec": {
-                        "containers": [
-                            {
-                                "name": ITER_API_DEPLOYMENT_NAME,
-                                "image": ITER_API_IMAGE_URL,
-                                "ports": [
-                                    {
-                                        "containerPort": 80
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                }
-            }
-        }),
-    )?;
+            scope: "Namespaced".to_string(),
+            versions: vec![CustomResourceDefinitionVersion {
+                name: "v1".to_string(),
+                served: true,
+                storage: true,
+                schema: Some(CustomResourceValidation {
+                    open_api_v3_schema: Some(JSONSchemaProps {
+                        type_: Some("object".to_string()),
+                        properties: Some(BTreeMap::from([
+                            (
+                                "github-user-id".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                },
+                            ),
+                            (
+                                "platform-permissions".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("array".to_string()),
+                                    items: Some(JSONSchemaPropsOrArray::Schema(Box::new(
+                                        JSONSchemaProps {
+                                            type_: Some("string".to_string()),
+                                            ..Default::default()
+                                        },
+                                    ))),
+                                    ..Default::default()
+                                }
+                            )
+                        ])),
+                        ..Default::default()
+                    }),
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await?;
 
-    create_or_update_namespaced_resource::<Deployment>(serde_json::to_value(api_image_deployment)?).await?;
+    //creates project
+    create_or_update_cluster_resource(CustomResourceDefinition {
+        metadata: ObjectMeta {
+            name: Some("iter-projects.iter.earth".to_string()),
+            ..Default::default()
+        },
+        spec: CustomResourceDefinitionSpec {
+            group: "iter.earth".to_string(),
+            names: CustomResourceDefinitionNames {
+                kind: "Project".to_string(),
+                plural: "projects".to_string(),
+                singular: Some("project".to_string()),
+                ..Default::default()
+            },
+            scope: "Namespaced".to_string(),
+            versions: vec![CustomResourceDefinitionVersion {
+                name: "v1".to_string(),
+                served: true,
+                storage: true,
+                schema: Some(CustomResourceValidation {
+                    open_api_v3_schema: Some(JSONSchemaProps {
+                        type_: Some("object".to_string()),
+                        properties: Some(BTreeMap::from([
+                            (
+                                "project_name".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                },
+                            ),
+                            (
+                                "git_url".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                }
+                            )
+                        ])),
+                        ..Default::default()
+                    }),
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await?;
+
+    //creates project_member
+    create_or_update_cluster_resource(CustomResourceDefinition {
+        metadata: ObjectMeta {
+            name: Some("iter-projects-members.iter.earth".to_string()),
+            ..Default::default()
+        },
+        spec: CustomResourceDefinitionSpec {
+            group: "iter.earth".to_string(),
+            names: CustomResourceDefinitionNames {
+                kind: "ProjectMember".to_string(),
+                plural: "project-members".to_string(),
+                singular: Some("project-member".to_string()),
+                ..Default::default()
+            },
+            scope: "Namespaced".to_string(),
+            versions: vec![CustomResourceDefinitionVersion {
+                name: "v1".to_string(),
+                served: true,
+                storage: true,
+                schema: Some(CustomResourceValidation {
+                    open_api_v3_schema: Some(JSONSchemaProps {
+                        type_: Some("object".to_string()),
+                        properties: Some(BTreeMap::from([
+                            (
+                                "project".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                },
+                            ),
+                            (
+                                "user".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                }
+                            ),
+                            (
+                                "permissions".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("array".to_string()),
+                                    items: Some(JSONSchemaPropsOrArray::Schema(Box::new(
+                                        JSONSchemaProps {
+                                            type_: Some("string".to_string()),
+                                            ..Default::default()
+                                        },
+                                    ))),
+                                    ..Default::default()
+                                }
+                            )
+                        ])),
+                        ..Default::default()
+                    }),
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await?;
+
+    //creates deployments
+    create_or_update_cluster_resource(CustomResourceDefinition {
+        metadata: ObjectMeta {
+            name: Some("iter-deployments.iter.earth".to_string()),
+            ..Default::default()
+        },
+        spec: CustomResourceDefinitionSpec {
+            group: "iter.earth".to_string(),
+            names: CustomResourceDefinitionNames {
+                kind: "Deployment".to_string(),
+                plural: "deployments".to_string(),
+                singular: Some("deployment".to_string()),
+                ..Default::default()
+            },
+            scope: "Namespaced".to_string(),
+            versions: vec![CustomResourceDefinitionVersion {
+                name: "v1".to_string(),
+                served: true,
+                storage: true,
+                schema: Some(CustomResourceValidation {
+                    open_api_v3_schema: Some(JSONSchemaProps {
+                        type_: Some("object".to_string()),
+                        properties: Some(BTreeMap::from([
+                            (
+                                "project".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                },
+                            ),
+                            (
+                                "user".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("string".to_string()),
+                                    ..Default::default()
+                                }
+                            ),
+                            (
+                                "permissions".to_string(),
+                                JSONSchemaProps {
+                                    type_: Some("array".to_string()),
+                                    items: Some(JSONSchemaPropsOrArray::Schema(Box::new(
+                                        JSONSchemaProps {
+                                            type_: Some("string".to_string()),
+                                            ..Default::default()
+                                        },
+                                    ))),
+                                    ..Default::default()
+                                }
+                            )
+                        ])),
+                        ..Default::default()
+                    }),
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await?;
 
     println!(
         "{} {}",

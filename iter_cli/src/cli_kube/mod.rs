@@ -29,11 +29,13 @@ pub async fn get_client() -> Result<Client, anyhow::Error> {
 }
 
 pub async fn create_or_update_namespaced_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource<Scope = NamespaceResourceScope>>(
-    mut resource: serde_json::Value,
+    resource: R,
 ) -> Result<(), anyhow::Error>
 where
     <R as Resource>::DynamicType: Default
 {
+    let mut resource = serde_json::to_value(resource)?;
+
     let client = get_client().await?;
     
     let namespace = match resource["metadata"]["namespace"].as_str() {
@@ -81,11 +83,12 @@ where
 }
 
 pub async fn create_or_update_cluster_resource<R: Clone + DeserializeOwned + Debug + Serialize + Resource>(
-    mut resource: serde_json::Value,
+    resource: R,
 ) -> Result<(), anyhow::Error>
 where
     <R as Resource>::DynamicType: Default
 {
+    let mut resource = serde_json::to_value(resource)?;
     let client = get_client().await?;
     
     let name = match resource["metadata"]["name"].as_str() {

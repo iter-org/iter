@@ -5,14 +5,41 @@ use super::{User, utils::{model::Model}, project_member::ProjectMember};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
-    _id: ObjectId,
-    name: String,
+    pub metadata: apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    project_name: String,
     git_url: String,
 }
 
 impl Model for Project {
     fn collection_name() ->  &'static str {
         "projects"
+    }
+}
+
+impl Model for Project {}
+
+impl Resource for Project {
+    const GROUP: &'static str = "iter";
+    const KIND: &'static str = "Project";
+    const VERSION: &'static str = "v1";
+    const URL_PATH_SEGMENT: &'static str = "projects";
+    const API_VERSION: &'static str ="iter/v1";
+    type Scope = NamespaceResourceScope;
+}
+
+impl ListableResource for Project {
+    const LIST_KIND: &'static str = "ProjectList";
+}
+
+impl Metadata for Project {
+    type Ty = apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    
+    fn metadata(&self) -> &Self::Ty {
+        &self.metadata
+    }
+    
+    fn metadata_mut(&mut self) -> &mut Self::Ty {
+        &mut self.metadata
     }
 }
 
@@ -38,6 +65,8 @@ impl Project {
     }
 
 }
+
+
 
 #[castle_api::castle_macro(Type)]
 impl Project {

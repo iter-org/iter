@@ -7,16 +7,46 @@ use super::{utils::model::Model, User};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProjectMember {
-    pub _id: ObjectId,
-    pub project_id: ObjectId,
-    pub user_id: ObjectId,
-    date_joined: mongodb::bson::DateTime,
+    pub metadata: apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    // kubernetes Project resource name
+    pub project: String,
+    // kubernetes User resource name
+    pub user: String,
     permissions: Vec<String>,
 }
+
+
 
 impl Model for ProjectMember {
     fn collection_name() ->  & 'static str {
         "project_members"
+    }
+}
+
+impl Model for ProjectMember {}
+
+impl Resource for ProjectMember {
+    const GROUP: &'static str = "iter";
+    const KIND: &'static str = "ProjectMember";
+    const VERSION: &'static str = "v1";
+    const URL_PATH_SEGMENT: &'static str = "project-members";
+    const API_VERSION: &'static str ="iter/v1";
+    type Scope = NamespaceResourceScope;
+}
+
+impl ListableResource for ProjectMember {
+    const LIST_KIND: &'static str = "ProjectMemberList";
+}
+
+impl Metadata for ProjectMember {
+    type Ty = apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    
+    fn metadata(&self) -> &Self::Ty {
+        &self.metadata
+    }
+    
+    fn metadata_mut(&mut self) -> &mut Self::Ty {
+        &mut self.metadata
     }
 }
 
