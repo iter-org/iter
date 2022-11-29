@@ -27,5 +27,5 @@ async-trait = "0.1.52"
 rand = "0.8.5"
 uuid = { version = "0.8.2", features = ["v4"] }
 iter_tls_acceptor = { path = "../iter_tls_acceptor" }
-iter_congress = { path = "../iter_congress" }
 tokio-retry = "0.3"
+anyhow = "1.0.66"

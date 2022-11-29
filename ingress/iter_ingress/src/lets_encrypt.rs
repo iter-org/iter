@@ -10,7 +10,6 @@ use serde_json::json;
 use std::sync::Arc;
 use std::{collections::HashMap};
 
-pub const NAMESPACE: &str = "drawbridge-ingress";
 const ENV: Environment = Environment::Production;
 pub type SecretCerts = Vec<(Host, CertData)>;
 

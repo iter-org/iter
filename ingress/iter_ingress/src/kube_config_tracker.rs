@@ -21,13 +21,6 @@ use crate::{IngressLoadBalancerError, Code};
 #[derive(Debug, Clone)]
 pub enum ChangeType {
     BackendChanged,
-    PeerAdded {
-        addr: String,
-        name: String,
-    },
-    PeerRemoved {
-        name: String
-    },
 }
 
 pub struct RoutingTable {
@@ -43,158 +36,103 @@ impl RoutingTable {
         }
     }
 
-    pub async fn start_watching(self: Arc<Self>) {
+    pub async fn start_watching(self: Arc<Self>) -> Result<(), anyhow::Error> {
         let client = Client::try_default().await.expect("Expected a valid KUBECONFIG environment variable");
-        let pod_api: Api<Pod> = Api::namespaced(client.clone(), NAMESPACE);
         let ingress_api: Api<Ingress> = Api::all(client.clone());
-        let mut handles = Vec::new();
 
         let rt = self.clone();
 
-        handles.push(tokio::spawn(async move {
-            let watcher = runtime::watcher(ingress_api, ListParams::default());
-            runtime::utils::try_flatten_applied(watcher)
-                .for_each_concurrent(None, |e| {
-                    let rt = rt.clone();
+        let watcher = runtime::watcher(ingress_api, ListParams::default());
+        let mut stream = Box::pin(runtime::utils::try_flatten_applied(watcher));
 
-                    async move {
-                        let resource = e.expect("Expected a valid resource");
+        while let Some(resource) = stream.next().await {
+            let rt = rt.clone();
+            let resource = resource?;
+            // Ingress name
+            let name = resource.metadata.name.clone();
+            println!("Ingress Name: {:?} changed", name);
 
-                        // Ingress name
-                        let name = resource.metadata.name.clone();
-                        println!("Ingress Name: {:?} changed", name);
+            if let None = resource.spec {
+                break
+            }
 
-                        if let None = resource.spec {
-                            return;
-                        }
+            if let None = resource.spec.as_ref().unwrap().rules {
+                break
+            }
 
-                        if let None = resource.spec.as_ref().unwrap().rules {
-                            return;
-                        }
+            let rules = &resource.spec.unwrap().rules.unwrap();
 
-                        let rules = &resource.spec.unwrap().rules.unwrap();
-
-                        for rule in rules {
-                            if let None = rule.host {
-                                continue; // we don't support rules without a host
-                            }
-
-                            if let None = rule.http.as_ref() {
-                                continue; // we don't support rules without an http spec
-                            }
-
-                            let paths = &rule.http.as_ref().unwrap().paths;
-
-                            for path in paths {
-                                if let None = path.path {
-                                    continue; // we don't support rules without a path
-                                }
-
-                                let backend = &path.backend;
-
-                                if let None = backend.service {
-                                    continue; // we don't support rules without a service
-                                }
-
-                                if let None = backend.service.as_ref().unwrap().port {
-                                    continue; // we don't support rules without a service port
-                                }
-
-                                if let None = backend.service.as_ref().unwrap().port.as_ref().unwrap().number {
-                                    continue; // we don't support rules without a service port
-                                }
-
-                                if let None = path.path_type {
-                                    continue; // we don't support rules without a path type
-                                }
-
-                                let path_type = path.path_type.as_ref().unwrap();
-
-                                if path_type != "Prefix" {
-                                    continue; // we only support prefix paths
-                                }
-
-                                let host = rule.host.as_ref().unwrap();
-                                let service_name = &backend.service.as_ref().unwrap().name;
-                                let service_port = backend.service.as_ref().unwrap().port.as_ref().unwrap();
-                                let path_prefix = path.path.as_ref().unwrap();
-                                let namespace = resource.metadata.namespace.clone().unwrap();
-
-                                let backend = Backend::with_prefix(
-                                    host.to_string(),
-                                    path_prefix.to_string(),
-                                    format!("{}.{}", service_name.to_string(), namespace),
-                                    service_port.number.unwrap() as u16);
-
-                                let mut backends = rt.backends_by_host.write().await;
-
-                                // check if the host already has backends
-                                let backends_for_host = if let Some(backends_for_host) = backends.get_mut(host) {
-                                    backends_for_host
-                                } else {
-                                    backends.insert(host.to_string(), HashSet::new());
-                                    backends.get_mut(host).unwrap()
-                                };
-
-                                // add the backend to the host
-                                backends_for_host.insert(backend);
-
-                                rt.notify_subscribers(ChangeType::BackendChanged).await;
-                            }
-                        }
-                    }
-                }).await;
-        }));
-
-        let rt = self.clone();
-
-        // watching for changes to peer ingress pods
-        handles.push(tokio::spawn(async move {
-            let mut stream = pod_api.watch(&ListParams::default().labels("app=drawbridge-ingress-pod"), "0").await.unwrap().boxed();
-
-            let get_pod_ip = |name: String| {
-                let retry_stategy = FibonacciBackoff::from_millis(100)
-                    .factor(1)
-                    .take(10);
-                let pod_api = pod_api.clone();
-                async move {
-                    tokio_retry::Retry::spawn(retry_stategy, || {
-                        async {
-                            // get the pod
-                            let pod = pod_api.get(&name)
-                                .await
-                                .map_err(|e| IngressLoadBalancerError::Other(format!("Failed to get pod: {}", e).into()))?;
-
-                            // get the pod IP
-                            let pod_ip = pod
-                                .status.ok_or(IngressLoadBalancerError::Other("Pod has no status".into()))?
-                                .pod_ip.ok_or(IngressLoadBalancerError::Other("Pod has no IP".into()))?;
-
-                            Ok::<String, IngressLoadBalancerError>(pod_ip)
-                        }
-                    }).await
+            for rule in rules {
+                if let None = rule.host {
+                    continue; // we don't support rules without a host
                 }
-            };
 
-            while let Some(status) = stream.try_next().await.unwrap() {
-                match status {
-                    WatchEvent::Added(pod) => {
-                        // The IP might not be ready yet, so we retry a few times
-                        let name = pod.metadata.name.unwrap();
-                        match get_pod_ip(name.clone()).await {
-                            Ok(addr) => rt.notify_subscribers(ChangeType::PeerAdded { addr, name }).await,
-                            Err(e) => println!("Failed to add, could not get it's IP: {}", e)
-                        }
-                    },
-                    WatchEvent::Deleted(pod) => rt.notify_subscribers(ChangeType::PeerRemoved { name: pod.metadata.name.unwrap() }).await,
-                    _ => {}
+                if let None = rule.http.as_ref() {
+                    continue; // we don't support rules without an http spec
+                }
+
+                let paths = &rule.http.as_ref().unwrap().paths;
+
+                for path in paths {
+                    if let None = path.path {
+                        continue; // we don't support rules without a path
+                    }
+
+                    let backend = &path.backend;
+
+                    if let None = backend.service {
+                        continue; // we don't support rules without a service
+                    }
+
+                    if let None = backend.service.as_ref().unwrap().port {
+                        continue; // we don't support rules without a service port
+                    }
+
+                    if let None = backend.service.as_ref().unwrap().port.as_ref().unwrap().number {
+                        continue; // we don't support rules without a service port
+                    }
+
+                    if let None = path.path_type {
+                        continue; // we don't support rules without a path type
+                    }
+
+                    let path_type = path.path_type.as_ref().unwrap();
+
+                    if path_type != "Prefix" {
+                        continue; // we only support prefix paths
+                    }
+
+                    let host = rule.host.as_ref().unwrap();
+                    let service_name = &backend.service.as_ref().unwrap().name;
+                    let service_port = backend.service.as_ref().unwrap().port.as_ref().unwrap();
+                    let path_prefix = path.path.as_ref().unwrap();
+                    let namespace = resource.metadata.namespace.clone().unwrap();
+
+                    let backend = Backend::with_prefix(
+                        host.to_string(),
+                        path_prefix.to_string(),
+                        format!("{}.{}", service_name.to_string(), namespace),
+                        service_port.number.unwrap() as u16);
+
+                    let mut backends = rt.backends_by_host.write().await;
+
+                    // check if the host already has backends
+                    let backends_for_host = if let Some(backends_for_host) = backends.get_mut(host) {
+                        backends_for_host
+                    } else {
+                        backends.insert(host.to_string(), HashSet::new());
+                        backends.get_mut(host).unwrap()
+                    };
+
+                    // add the backend to the host
+                    backends_for_host.insert(backend);
+
+                    rt.notify_subscribers(ChangeType::BackendChanged).await;
                 }
             }
-        }));
+        }
 
-
-        // join all the futures
-        futures::future::join_all(handles).await;
+        Ok(())
     }
 
     pub async fn subscribe(&self, subscriber: Box<dyn Fn(ChangeType) + Sync + Send>) {
